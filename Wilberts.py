@@ -2,95 +2,103 @@ import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 
-headers = {}
+def get_makes():
+    url = 'https://www.wilberts.com/u-pull-it/'
 
-payload = {
+    request_car_makes = requests.post(url)
+
+    if request_car_makes.status_code == 200:
+        makes_soup = BeautifulSoup(request_car_makes.text, 'html.parser')
+        makes_tag = makes_soup.find(id='search_car_makes')
+
+        car_makes = {}
+
+        for make in makes_tag:
+            car_makes[make['value']] = make.text
+
+        del car_makes['0']
+
+        return car_makes
+    else:
+        print('Makes request failed!')
+
+def get_models(make_id):
+    url = 'https://www.wilberts.com/u-pull-it/wp-admin/admin-ajax.php'
+
+    payload = {
     'action': 'genInvCarModels',
-    'carmake': '48',
+    'carmake': make_id,
     'carmodel': '248',
     'caryear': '2009',
     'currentlocation': 'bath'
-}
+    }
 
-car_info = {
+    request_car_models = requests.post(url, data=payload)
+
+    if request_car_models.status_code == 200:
+        models_soup = BeautifulSoup(request_car_models.text, 'html.parser')
+
+        car_models = {}
+
+        for model in models_soup:
+            car_models[model['value']] = model.text
+
+        del car_models['0']
+
+        return car_models
+    else:
+        print('Models request failed!')
+
+def get_cars(make_id, model_id):
+    url = 'https://www.wilberts.com/u-pull-it/wp-admin/admin-ajax.php'
+
+    payload = {
+    'action': 'genInvSearchReport',
+    'carmake': make_id,
+    'carmodel': model_id,
+    'caryear': '2009',
+    'currentlocation': 'bath'
+    }
+
+    request_cars = requests.post(url, data=payload)
+
+    if request_cars.status_code == 200:
+        cars_soup = BeautifulSoup(request_cars.text, 'html.parser')
+
+        return cars_soup
+    else:
+        print('Cars request failed!')
+
+def save_cars():
+    car_info = {
     'Make': [],
     'Model': [],
     'Year': [],
     'VIN': [],
     'Days in Yard': []
     }
+    
+    makes = get_makes()
 
-#make sure the request went through -- returns request
-def MakeRequest(url, headers = {}, data = {}):
-    request = requests.post(url, headers=headers, data=data)
+    for make_id, make_text in makes.items():
+        models = get_models(make_id)
 
-    if request.status_code == 200:
-        return request
-    else:
-        print('Request failed!')
+        for model_id, model_text in models.items():
+            cars = get_cars(make_id, model_id)
 
-        return None
+            for car in cars:
+                year = car.contents[0].text
+                vin = car.contents[2].text
+                days = car.contents[3].text
 
-# Used to get the newest information from the website
-def QueryInventory():
-    makes_url = 'https://www.wilberts.com/u-pull-it/'
+                if year != 'Year':
+                    car_info['Make'].append(make_text)
+                    car_info['Model'].append(model_text)
+                    car_info['Year'].append(year)
+                    car_info['VIN'].append(vin)
+                    car_info['Days in Yard'].append(days)
 
-    request_car_makes = MakeRequest(makes_url)
+    yard_data = pd.DataFrame(car_info)
+    yard_data.to_csv('yard_data.csv')
 
-    if request_car_makes != None:
-        makes_soup = BeautifulSoup(request_car_makes.text, 'html.parser') #must parse entire page for the makes
-        makes_tag = makes_soup.find(id='search_car_makes') #input field for selecting different makes has this id
-
-        form_url = 'https://www.wilberts.com/u-pull-it/wp-admin/admin-ajax.php'
-
-        #gets all the makes
-        for option in makes_tag:
-            make_id = int(option['value'])
-            make_text = option.text
-
-            #looping through makes and getting all cars for each model
-            if make_id != 0:
-                payload['action'] = 'genInvCarModels'
-                payload['carmake'] = make_id
-
-                request_car_models = MakeRequest(form_url, None, payload)
-
-                if request_car_models != None:
-                    models_soup = BeautifulSoup(request_car_models.text, 'html.parser')
-
-                    #looping through models of cars
-                    for model in models_soup:
-                        model_id = int(model['value'])
-                        model_text = model.text
-
-                        if model_id != 0:
-                            payload['action'] = 'genInvSearchReport'
-                            payload['carmodel'] = model_id
-
-                            request_cars = MakeRequest(form_url, None, payload)
-
-                            if request_cars != None:
-                                cars_soup = BeautifulSoup(request_cars.text, 'html.parser')
-
-                                #going through every car that got returned and getting year and vin information
-                                for car in cars_soup:
-                                    year = car.contents[0].text
-                                    vin = car.contents[2].text
-                                    days = car.contents[3].text
-
-                                    if year != 'Year':
-                                        car_info['Make'].append(make_text)
-                                        car_info['Model'].append(model_text)
-                                        car_info['Year'].append(year)
-                                        car_info['VIN'].append(vin)
-                                        car_info['Days in Yard'].append(days)
-                                        
-            
-    else:
-        print('Query failed to acquire makes!')
-
-QueryInventory()
-
-df = pd.DataFrame(car_info)
-df.to_excel('WilbertsCarData.xlsx')
-print('Done.')
+save_cars()
