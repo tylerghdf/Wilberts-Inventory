@@ -101,4 +101,12 @@ def save_cars():
     yard_data = pd.DataFrame(car_info)
     yard_data.to_csv('yard_data.csv')
 
-save_cars()
+def main():
+    #Urllib parser has dumb interpretation on their robots file. I don't like it either...
+    if 'Allow: /wp-admin/admin-ajax.php' in requests.get('https://www.wilberts.com/robots.txt').text:
+        save_cars()
+    else:
+        print('No more robots!')
+
+if __name__ == '__main__':
+    main()
