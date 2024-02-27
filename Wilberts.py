@@ -1,3 +1,5 @@
+import constants
+import os
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -98,8 +100,30 @@ def save_cars():
                     car_info['VIN'].append(vin)
                     car_info['Days in Yard'].append(days)
 
+    # Converting data to dataframe
     yard_data = pd.DataFrame(car_info)
-    yard_data.to_csv('yard_data.csv')
+
+    #Cleaning data and saving (formats for comparisons)
+    yard_data = yard_data.dropna()
+
+    if os.path.exists('Data/yard_data.csv'):
+        os.rename('Data/yard_data.csv', 'Data/old_yard_data.csv')
+
+    yard_data.to_csv('Data/yard_data.csv', index=False)
+
+# Comparison of new and old yard data
+def get_changes():
+    print('Hey dummy make this actually take into account the time since last scraped so it does the thing right')
+    new_data = pd.read_csv('Data/yard_data.csv')
+    old_data = pd.read_csv('Data/old_yard_data.csv')
+
+    changed_data = pd.concat([new_data, old_data]).drop_duplicates(subset=['VIN'], keep=False)
+
+    #Saving all the changes to respective files
+    changed_data[changed_data['Days in Yard'] < 7].to_csv('Data/added_to_yard.csv', index=False)
+    changed_data[changed_data['Days in Yard'] > 7].to_csv('Data/removed_from_yard.csv', index=False)
+    
+
 
 def main():
     #Urllib parser has dumb interpretation on their robots file. I don't like it either...
