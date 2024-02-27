@@ -106,6 +106,9 @@ def save_cars():
     #Cleaning data and saving (formats for comparisons)
     yard_data = yard_data.dropna()
 
+    if not os.path.exists('Data'):
+        os.mkdir('Data')
+
     if os.path.exists('Data/yard_data.csv'):
         os.rename('Data/yard_data.csv', 'Data/old_yard_data.csv')
 
